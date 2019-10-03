@@ -1,4 +1,4 @@
-SELECT AVG(battery_doorbell_Ratio),AVG(battery_suc_Ratio), AVG(battery_spotlight_Ratio), AVG(battery_floodlight_Ratio)
+SELECT AVG(battery_doorbell_Ratio) as doorbell_Ratio,AVG(battery_suc_Ratio) as SUC_Ratio, AVG(battery_spotlight_Ratio) as Spotlight_Ratio, AVG(battery_floodlight_Ratio) as Floodlight_Ratio
 FROM(
 SELECT "destination_location.name",
    CASE
