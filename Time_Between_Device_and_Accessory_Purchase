@@ -1,0 +1,37 @@
+SELECT AVG(Time_Gap) 
+FROM(
+  SELECT *, 
+  CASE
+    WHEN ((accessory = 1.0 AND accessory_lag = 0.0) AND ("destination_location.name" = prev_name) AND (closed_at >= opened_at)) /*Checks if the same user bought a device then an accessory, and ensures the accessory purchase is after the device purchase*/
+      OR (accessory = 0.0 AND accessory_lag = 1.0 AND closed_at = opened_at) /*If they bought accessory then device, only count it if they bought them at the same time*/
+    THEN closed_at - opened_at /*Calculate time between device & accessory purchase*/
+    END AS Time_Gap
+  FROM(
+      SELECT /*Selects order_id, user, user on previous line in table (PLIT), product, PLIT product, time ordered, PLIT time ordered, binary accessory, PLIT binary accessory */
+      order_id, /* The LAG function let's you compare each row to the next row, necessary to see if they bought an accessory after a device, and when that happened */
+      "destination_location.name", 
+      LAG("destination_location.name",1) OVER (ORDER BY "destination_location.name",order_id) AS prev_name,
+      product_name, 
+      LAG(product_name,1) OVER (ORDER BY "destination_location.name",order_id) AS prev_product,
+      closed_at,
+      LAG(closed_at,1) OVER (ORDER BY "destination_location.name",order_id) AS opened_at,
+      accessory,
+      LAG(accessory,1) OVER (ORDER BY "destination_location.name",order_id) AS accessory_lag
+      FROM(
+        SELECT product_name,order_id,"destination_location.name", closed_at,
+        CASE /* Assigns all accessories with binary '1', and assumes everything else is a device. We can change this to add alarm or other accessories if any were missed */
+        WHEN product_name LIKE '%Ring Chime Pro%' OR product_name LIKE  '%Chime%' OR product_name LIKE '%Quick Release Battery Pack%' OR product_name LIKE '%Solar Panel%'  
+          OR product_name LIKE '%Solar Charger%' OR product_name LIKE '%Kit%' OR product_name LIKE '%Adapter%' OR product_name LIKE '%Mount%' OR product_name LIKE '%Sign%'
+        THEN 1.0
+        ELSE 0.0
+        END AS accessory
+        FROM bi_raw_prod.shopify_line_items
+        FULL JOIN bi_raw_prod.shopify_orders on shopify_line_items.order_id = shopify_orders.id
+          WHERE closed_at >='2019-01-01 06:49:53.840' AND "destination_location.name" != '' /* Only look at data entries in 2019 and where the customer isn't blank*/
+            AND product_name NOT LIKE '%Alarm%' /*Not looking at anything alarm*//*AND "destination_location.name" = 'Abraham Thomas'*/
+          GROUP BY "destination_location.name", order_id, product_name, closed_at
+          ORDER BY "destination_location.name",closed_at
+        /*limit 100000*/
+    )ORDER BY "destination_location.name",closed_at
+  ) ORDER BY "destination_location.name",closed_at
+)WHERE time_gap != '00:00:00' /*Ignore POS orders, we want to know avg purchase time APOS*/
