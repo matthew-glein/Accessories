@@ -1,0 +1,94 @@
+SELECT AVG(battery_doorbell_Ratio),AVG(battery_suc_Ratio), AVG(battery_spotlight_Ratio), AVG(battery_floodlight_Ratio)
+FROM(
+SELECT "destination_location.name",
+   CASE
+     WHEN num_doorbells = 0.0
+       THEN null
+       ELSE 
+       (num_batteries / num_doorbells)
+       END AS battery_doorbell_Ratio,
+   CASE
+     WHEN num_sucs = 0.0
+       THEN null
+       ELSE 
+       (num_batteries / num_sucs)
+       END AS battery_suc_Ratio,
+   CASE
+     WHEN num_spotlights = 0.0
+       THEN null
+       ELSE 
+       (num_batteries / num_spotlights)
+       END AS battery_spotlight_Ratio,
+   CASE
+     WHEN num_floodlights = 0.0 
+       THEN null
+       ELSE 
+       (num_batteries / num_floodlights)
+       END AS battery_floodlight_Ratio
+         FROM(
+          SELECT "destination_location.name", SUM(accessory) AS num_batteries, sum(doorbell) AS num_doorbells,
+          sum(suc) as num_sucs, sum(spotlight) as num_spotlights, sum(floodlight) as num_floodlights
+          FROM
+          (
+           SELECT
+                "destination_location.name", product_name,
+              CASE
+                WHEN product_name LIKE '%Solar Panel%'
+                  THEN 1.0
+                ELSE 
+                  0.0
+                END AS accessory,
+                CASE
+                WHEN product_name LIKE 'Video Doorbell' OR product_name LIKE 'Video Doorbell 2' OR product_name LIKE 'Video Doorbell Pro' OR product_name LIKE 'Video Doorbell Elite' /*Input more devices later*/
+                  THEN 1.0
+                ELSE 
+                  0.0
+                END AS doorbell,
+                CASE
+                WHEN product_name NOT LIKE '%Wired%' AND product_name LIKE '%4-Pack Stick Up Cam%'
+                  THEN 4.0
+                WHEN product_name NOT LIKE '%Wired%' AND product_name LIKE '%3-Pack Stick Up Cam%'
+                  THEN 3.0
+                WHEN product_name NOT LIKE '%Wired%' AND product_name LIKE '%2-Pack Stick Up Cam%'
+                  THEN 2.0
+                WHEN product_name NOT LIKE '%Wired%' AND product_name LIKE '%Stick Up Cam%' AND product_name NOT LIKE '%Solar Panel%'
+                  THEN 1.0
+                ELSE 
+                  0.0
+                END AS SUC,
+                CASE
+                WHEN product_name NOT LIKE '%Wired%' AND product_name LIKE '%4-Pack Spotlight Cam%' AND product_name NOT LIKE '%Mount%'
+                  THEN 4.0
+                WHEN product_name NOT LIKE '%Wired%' AND product_name LIKE '%2-Pack Spotlight Cam%'
+                  THEN 2.0
+                WHEN product_name NOT LIKE '%Wired%' AND product_name LIKE '%3-Pack Spotlight Cam%'
+                  THEN 3.0
+                WHEN product_name NOT LIKE '%Wired%' AND product_name LIKE '%Spotlight Cam%' AND product_name NOT LIKE '%Solar Panel%' AND product_name NOT LIKE '%mount%'
+                  THEN 1.0
+                ELSE 
+                  0.0
+                END AS spotlight,
+                CASE
+                WHEN product_name NOT LIKE '%Wired%' AND product_name LIKE '%4-Pack Floodlight Cam%' AND product_name NOT LIKE '%Mount%'
+                  THEN 4.0
+                WHEN product_name NOT LIKE '%Wired%' AND product_name LIKE '%2-Pack Floodlight Cam%'
+                  THEN 2.0
+                WHEN product_name NOT LIKE '%Wired%' AND product_name LIKE '%3-Pack Floodlight Cam%'
+                  THEN 3.0
+                WHEN product_name NOT LIKE '%Wired%' AND product_name LIKE '%Floodlight Cam%' AND product_name NOT LIKE '%Solar Panel%' AND product_name NOT LIKE '%mount%'
+                  THEN 1.0
+                ELSE 
+                  0.0
+                END AS floodlight
+                FROM(
+                  SELECT 
+                  "destination_location.name", product_name
+                  FROM bi_raw_prod.shopify_line_items
+                  WHERE "destination_location.name" != ''
+                  GROUP BY "destination_location.name", product_name
+                  ORDER BY "destination_location.name"
+                ) limit 10000
+          )
+          GROUP BY "destination_location.name"
+        )
+     )
